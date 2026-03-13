@@ -1,4 +1,4 @@
-import apiClient from "./client";
+import apiClient from "../api/client";
 import {
   AuthResponse, LoginPayload, RegisterPayload,
   JobPost, CreateJobPayload, AIGenerateJobPayload, AIGenerateJobResponse,
@@ -8,7 +8,7 @@ import {
   Interview, InterviewCriterion, ScorecardScore, ScheduleInterviewPayload,
   CompositeCandidate, FinalSelectionPayload,
   DashboardOverview, PipelineSummary, AIPerformanceReport,
-} from "@/types";
+} from "../../types";
 
 // ─────────────────────────────────────────
 // AUTH

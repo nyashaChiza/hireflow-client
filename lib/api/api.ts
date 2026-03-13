@@ -8,7 +8,7 @@ import {
   Interview, InterviewCriterion, ScorecardScore, ScheduleInterviewPayload,
   CompositeCandidate, FinalSelectionPayload,
   DashboardOverview, PipelineSummary, AIPerformanceReport,
-} from "@/types";
+} from "../../types";
 
 // ─────────────────────────────────────────
 // AUTH
