@@ -1,8 +1,8 @@
-// File: C:\Users\usar\OneDrive\Documents\GitHub\hireflow-client\app\(dashboard)\applications\page.tsx
-import * as entry from '../../../../../app/(dashboard)/applications/page.js'
+// File: C:\Users\usar\OneDrive\Documents\GitHub\hireflow-client\app\careers\[id]\page.tsx
+import * as entry from '../../../../../app/careers/[id]/page.js'
 import type { ResolvingMetadata, ResolvingViewport } from 'next/dist/lib/metadata/types/metadata-interface.js'
 
-type TEntry = typeof import('../../../../../app/(dashboard)/applications/page.js')
+type TEntry = typeof import('../../../../../app/careers/[id]/page.js')
 
 // Check that the entry is a valid entry
 checkFields<Diff<{

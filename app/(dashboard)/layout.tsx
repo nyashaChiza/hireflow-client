@@ -129,6 +129,23 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
         </nav>
 
         {/* User + Logout */}
+        {/* Public careers link */}
+        <div className="px-3 pb-2">
+          <a
+            href="/careers"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-[#484F58] hover:text-[#4A9EFF] hover:bg-[#1C2128] transition-all"
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/>
+              <polyline points="15 3 21 3 21 9"/>
+              <line x1="10" y1="14" x2="21" y2="3"/>
+            </svg>
+            Public job board
+          </a>
+        </div>
+
         <div className="px-3 py-4 border-t border-[#1E2A3A] space-y-1">
           <div className="flex items-center gap-3 px-3 py-2">
             <div className="w-7 h-7 rounded-full bg-[#4A9EFF]/20 border border-[#4A9EFF]/30 flex items-center justify-center flex-shrink-0">

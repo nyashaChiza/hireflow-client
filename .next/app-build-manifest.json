@@ -21,15 +21,15 @@
       "static/chunks/main-app.js",
       "static/chunks/app/(dashboard)/jobs/page.js"
     ],
-    "/(dashboard)/applications/page": [
+    "/careers/page": [
       "static/chunks/webpack.js",
       "static/chunks/main-app.js",
-      "static/chunks/app/(dashboard)/applications/page.js"
+      "static/chunks/app/careers/page.js"
     ],
-    "/(dashboard)/interviews/page": [
+    "/careers/[id]/page": [
       "static/chunks/webpack.js",
       "static/chunks/main-app.js",
-      "static/chunks/app/(dashboard)/interviews/page.js"
+      "static/chunks/app/careers/[id]/page.js"
     ]
   }
 }

@@ -15,7 +15,7 @@ import type { NextRequest } from "next/server";
 // a cookie so middleware can read it.
 // ─────────────────────────────────────────
 
-const PUBLIC_ROUTES = ["/login", "/register", "/jobs/apply"];
+const PUBLIC_ROUTES = ["/login", "/register", "/jobs/apply", "/careers"];
 
 export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
