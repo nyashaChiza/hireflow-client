@@ -1,6 +1,8 @@
 import apiClient from "../api/client";
+import { create } from "zustand";
+import { persist } from "zustand/middleware";
 import {
-  AuthResponse, LoginPayload, RegisterPayload,
+  User, AuthResponse, LoginPayload, RegisterPayload,
   JobPost, CreateJobPayload, AIGenerateJobPayload, AIGenerateJobResponse,
   Criterion, CreateCriterionPayload, CriteriaSummary,
   Application, ApplicationStatus,
@@ -11,7 +13,130 @@ import {
 } from "../../types";
 
 // ─────────────────────────────────────────
-// AUTH
+// Cookie helpers (client-side only)
+// Middleware reads hireflow_token cookie for route protection.
+// ─────────────────────────────────────────
+
+const setCookie = (value: string) => {
+  if (typeof window === "undefined") return;
+  document.cookie = `hireflow_token=${value}; path=/; max-age=${60 * 60 * 24 * 7}; SameSite=Lax`;
+};
+
+const clearCookie = () => {
+  if (typeof window === "undefined") return;
+  document.cookie = "hireflow_token=; path=/; max-age=0";
+};
+
+// ─────────────────────────────────────────
+// Auth Store
+// ─────────────────────────────────────────
+
+interface AuthState {
+  user: User | null;
+  token: string | null;
+  isLoading: boolean;
+  error: string | null;
+  setAuth: (user: User, token: string) => void;
+  login: (payload: LoginPayload) => Promise<void>;
+  register: (payload: RegisterPayload) => Promise<void>;
+  fetchMe: () => Promise<void>;
+  logout: () => void;
+  clearError: () => void;
+}
+
+export const useAuthStore = create<AuthState>()(
+  persist(
+    (set) => ({
+      user: null,
+      token: null,
+      isLoading: false,
+      error: null,
+
+      setAuth: (user: User, token: string) => {
+        if (typeof window !== "undefined") {
+          localStorage.setItem("hireflow_token", token);
+          setCookie(token);
+        }
+        set({ user, token });
+      },
+
+      login: async (payload: LoginPayload) => {
+        set({ isLoading: true, error: null });
+        try {
+          const res: AuthResponse = await authAPI.login(payload);
+          if (typeof window !== "undefined") {
+            localStorage.setItem("hireflow_token", res.access_token);
+            setCookie(res.access_token);
+          }
+          set({ user: res.user, token: res.access_token, isLoading: false });
+        } catch (error) {
+          set({
+            error: error instanceof Error ? error.message : "Login failed",
+            isLoading: false,
+          });
+          throw error;
+        }
+      },
+
+      register: async (payload: RegisterPayload) => {
+        set({ isLoading: true, error: null });
+        try {
+          const res: AuthResponse = await authAPI.register(payload);
+          if (typeof window !== "undefined") {
+            localStorage.setItem("hireflow_token", res.access_token);
+            setCookie(res.access_token);
+          }
+          set({ user: res.user, token: res.access_token, isLoading: false });
+        } catch (error) {
+          set({
+            error: error instanceof Error ? error.message : "Registration failed",
+            isLoading: false,
+          });
+          throw error;
+        }
+      },
+
+      fetchMe: async () => {
+        set({ isLoading: true, error: null });
+        try {
+          const user: User = await authAPI.me();
+          set({ user, isLoading: false });
+        } catch (error) {
+          set({
+            error: error instanceof Error ? error.message : "Failed to fetch user",
+            isLoading: false,
+          });
+          throw error;
+        }
+      },
+
+      logout: () => {
+        if (typeof window !== "undefined") {
+          localStorage.removeItem("hireflow_token");
+          clearCookie();
+        }
+        set({ user: null, token: null, error: null });
+      },
+
+      clearError: () => set({ error: null }),
+    }),
+    {
+      name: "auth-store",
+      onRehydrateStorage: () => (state) => {
+        // On page load: restore cookie from persisted token so middleware works
+        if (state?.token) {
+          setCookie(state.token);
+          if (typeof window !== "undefined") {
+            localStorage.setItem("hireflow_token", state.token);
+          }
+        }
+      },
+    }
+  )
+);
+
+// ─────────────────────────────────────────
+// AUTH API
 // ─────────────────────────────────────────
 
 export const authAPI = {
@@ -19,20 +144,18 @@ export const authAPI = {
     const { data } = await apiClient.post("/auth/login", payload);
     return data;
   },
-
   register: async (payload: RegisterPayload): Promise<AuthResponse> => {
     const { data } = await apiClient.post("/auth/register", payload);
     return data;
   },
-
-  me: async () => {
+  me: async (): Promise<User> => {
     const { data } = await apiClient.get("/auth/me");
     return data;
   },
 };
 
 // ─────────────────────────────────────────
-// JOBS
+// JOBS API
 // ─────────────────────────────────────────
 
 export const jobsAPI = {
@@ -40,41 +163,33 @@ export const jobsAPI = {
     const { data } = await apiClient.get("/jobs", { params: { status } });
     return data;
   },
-
   get: async (jobId: string): Promise<JobPost> => {
     const { data } = await apiClient.get(`/jobs/${jobId}`);
     return data;
   },
-
   create: async (payload: CreateJobPayload): Promise<JobPost> => {
     const { data } = await apiClient.post("/jobs", payload);
     return data;
   },
-
   update: async (jobId: string, payload: Partial<CreateJobPayload>): Promise<JobPost> => {
     const { data } = await apiClient.patch(`/jobs/${jobId}`, payload);
     return data;
   },
-
   publish: async (jobId: string): Promise<JobPost> => {
     const { data } = await apiClient.post(`/jobs/${jobId}/publish`);
     return data;
   },
-
   close: async (jobId: string): Promise<JobPost> => {
     const { data } = await apiClient.post(`/jobs/${jobId}/close`);
     return data;
   },
-
   delete: async (jobId: string): Promise<void> => {
     await apiClient.delete(`/jobs/${jobId}`);
   },
-
   aiGenerate: async (payload: AIGenerateJobPayload): Promise<AIGenerateJobResponse> => {
     const { data } = await apiClient.post("/jobs/ai/generate", payload);
     return data;
   },
-
   aiImprove: async (jobPostId: string, currentText: string) => {
     const { data } = await apiClient.post("/jobs/ai/improve", {
       job_post_id: jobPostId,
@@ -82,7 +197,6 @@ export const jobsAPI = {
     });
     return data;
   },
-
   publicListings: async (): Promise<Partial<JobPost>[]> => {
     const { data } = await apiClient.get("/jobs/public/listings");
     return data;
@@ -90,7 +204,7 @@ export const jobsAPI = {
 };
 
 // ─────────────────────────────────────────
-// CRITERIA
+// CRITERIA API
 // ─────────────────────────────────────────
 
 export const criteriaAPI = {
@@ -98,36 +212,29 @@ export const criteriaAPI = {
     const { data } = await apiClient.get(`/criteria/job/${jobId}`);
     return data;
   },
-
   getSummary: async (jobId: string): Promise<CriteriaSummary> => {
     const { data } = await apiClient.get(`/criteria/job/${jobId}/summary`);
     return data;
   },
-
   create: async (payload: CreateCriterionPayload): Promise<Criterion> => {
     const { data } = await apiClient.post("/criteria", payload);
     return data;
   },
-
   bulkCreate: async (jobId: string, criteria: CreateCriterionPayload[]) => {
     const { data } = await apiClient.post(`/criteria/bulk?job_post_id=${jobId}`, criteria);
     return data;
   },
-
   update: async (criterionId: string, updates: Partial<CreateCriterionPayload>): Promise<Criterion> => {
     const { data } = await apiClient.patch(`/criteria/${criterionId}`, updates);
     return data;
   },
-
   delete: async (criterionId: string): Promise<void> => {
     await apiClient.delete(`/criteria/${criterionId}`);
   },
-
   aiSuggest: async (jobId: string) => {
     const { data } = await apiClient.post("/criteria/ai/suggest", { job_post_id: jobId });
     return data;
   },
-
   aiSuggestAndSave: async (jobId: string) => {
     const { data } = await apiClient.post("/criteria/ai/suggest-and-save", { job_post_id: jobId });
     return data;
@@ -135,7 +242,7 @@ export const criteriaAPI = {
 };
 
 // ─────────────────────────────────────────
-// APPLICATIONS
+// APPLICATIONS API
 // ─────────────────────────────────────────
 
 export const applicationsAPI = {
@@ -145,17 +252,14 @@ export const applicationsAPI = {
     });
     return data;
   },
-
   get: async (applicationId: string): Promise<Application> => {
     const { data } = await apiClient.get(`/applications/${applicationId}`);
     return data;
   },
-
   getPipeline: async (jobId: string) => {
     const { data } = await apiClient.get(`/applications/job/${jobId}/pipeline`);
     return data;
   },
-
   updateStatus: async (applicationId: string, status: ApplicationStatus, rejectionReason?: string) => {
     const { data } = await apiClient.patch(`/applications/${applicationId}/status`, {
       status,
@@ -163,7 +267,6 @@ export const applicationsAPI = {
     });
     return data;
   },
-
   updateNotes: async (applicationId: string, notes: string) => {
     const { data } = await apiClient.patch(
       `/applications/${applicationId}/notes`,
@@ -172,12 +275,10 @@ export const applicationsAPI = {
     );
     return data;
   },
-
   getCandidateProfile: async (candidateId: string) => {
     const { data } = await apiClient.get(`/applications/candidate/${candidateId}`);
     return data;
   },
-
   bulkUpdateStatus: async (
     jobId: string,
     applicationIds: string[],
@@ -194,7 +295,7 @@ export const applicationsAPI = {
 };
 
 // ─────────────────────────────────────────
-// SCORING
+// SCORING API
 // ─────────────────────────────────────────
 
 export const scoringAPI = {
@@ -202,34 +303,26 @@ export const scoringAPI = {
     const { data } = await apiClient.post(`/scoring/score/${applicationId}`);
     return data;
   },
-
   scoreAll: async (jobId: string) => {
     const { data } = await apiClient.post(`/scoring/score-all/${jobId}`);
     return data;
   },
-
   rescoreAll: async (jobId: string) => {
     const { data } = await apiClient.post(`/scoring/rescore/${jobId}`);
     return data;
   },
-
   getRanked: async (jobId: string, limit?: number): Promise<{ ranked_applications: RankedApplication[]; total_scored: number; total_unscored: number }> => {
-    const { data } = await apiClient.get(`/scoring/ranked/${jobId}`, {
-      params: { limit },
-    });
+    const { data } = await apiClient.get(`/scoring/ranked/${jobId}`, { params: { limit } });
     return data;
   },
-
   getBreakdown: async (applicationId: string) => {
     const { data } = await apiClient.get(`/scoring/breakdown/${applicationId}`);
     return data;
   },
-
   override: async (payload: ScoreOverridePayload) => {
     const { data } = await apiClient.post("/scoring/override", payload);
     return data;
   },
-
   getOverrides: async (jobId: string) => {
     const { data } = await apiClient.get(`/scoring/overrides/${jobId}`);
     return data;
@@ -237,7 +330,7 @@ export const scoringAPI = {
 };
 
 // ─────────────────────────────────────────
-// SHORTLIST
+// SHORTLIST API
 // ─────────────────────────────────────────
 
 export const shortlistAPI = {
@@ -249,17 +342,14 @@ export const shortlistAPI = {
     );
     return data;
   },
-
   confirm: async (jobId: string, applicationIds: string[]) => {
     const { data } = await apiClient.post(`/shortlist/confirm/${jobId}`, applicationIds);
     return data;
   },
-
   get: async (jobId: string) => {
     const { data } = await apiClient.get(`/shortlist/${jobId}`);
     return data;
   },
-
   addCandidate: async (applicationId: string, reason: string) => {
     const { data } = await apiClient.post(
       `/shortlist/add/${applicationId}`,
@@ -268,7 +358,6 @@ export const shortlistAPI = {
     );
     return data;
   },
-
   removeCandidate: async (applicationId: string, reason: string) => {
     const { data } = await apiClient.delete(
       `/shortlist/remove/${applicationId}`,
@@ -276,7 +365,6 @@ export const shortlistAPI = {
     );
     return data;
   },
-
   compare: async (applicationIds: string[]) => {
     const { data } = await apiClient.post("/shortlist/compare", applicationIds);
     return data;
@@ -284,7 +372,7 @@ export const shortlistAPI = {
 };
 
 // ─────────────────────────────────────────
-// INTERVIEWS
+// INTERVIEWS API
 // ─────────────────────────────────────────
 
 export const interviewsAPI = {
@@ -292,24 +380,18 @@ export const interviewsAPI = {
     const { data } = await apiClient.post("/interviews", payload);
     return data;
   },
-
   getForJob: async (jobId: string, round?: number) => {
-    const { data } = await apiClient.get(`/interviews/job/${jobId}`, {
-      params: { round },
-    });
+    const { data } = await apiClient.get(`/interviews/job/${jobId}`, { params: { round } });
     return data;
   },
-
-  getMyInterviews: async () => {
+  getMyInterviews: async (): Promise<Interview[]> => {
     const { data } = await apiClient.get("/interviews/my-interviews");
     return data;
   },
-
   get: async (interviewId: string) => {
     const { data } = await apiClient.get(`/interviews/${interviewId}`);
     return data;
   },
-
   updateStatus: async (interviewId: string, status: string) => {
     const { data } = await apiClient.patch(
       `/interviews/${interviewId}/status`,
@@ -318,7 +400,6 @@ export const interviewsAPI = {
     );
     return data;
   },
-
   reschedule: async (interviewId: string, newScheduledAt: string, newLocation?: string) => {
     const { data } = await apiClient.patch(
       `/interviews/${interviewId}/reschedule`,
@@ -327,14 +408,10 @@ export const interviewsAPI = {
     );
     return data;
   },
-
   getCriteria: async (jobId: string, round?: number): Promise<{ criteria: InterviewCriterion[] }> => {
-    const { data } = await apiClient.get(`/interviews/criteria/${jobId}`, {
-      params: { round },
-    });
+    const { data } = await apiClient.get(`/interviews/criteria/${jobId}`, { params: { round } });
     return data;
   },
-
   aiSuggestCriteria: async (jobId: string, round?: number, roundName?: string) => {
     const { data } = await apiClient.post("/interviews/criteria/ai/suggest", {
       job_post_id: jobId,
@@ -343,7 +420,6 @@ export const interviewsAPI = {
     });
     return data;
   },
-
   aiSuggestAndSaveCriteria: async (jobId: string, round?: number, roundName?: string) => {
     const { data } = await apiClient.post("/interviews/criteria/ai/suggest-and-save", {
       job_post_id: jobId,
@@ -352,7 +428,6 @@ export const interviewsAPI = {
     });
     return data;
   },
-
   submitScorecard: async (interviewId: string, scores: ScorecardScore[]) => {
     const { data } = await apiClient.post("/interviews/scorecard/submit", {
       interview_id: interviewId,
@@ -360,12 +435,10 @@ export const interviewsAPI = {
     });
     return data;
   },
-
   getScorecard: async (interviewId: string) => {
     const { data } = await apiClient.get(`/interviews/scorecard/${interviewId}`);
     return data;
   },
-
   getInterviewSummary: async (applicationId: string) => {
     const { data } = await apiClient.get(`/interviews/summary/${applicationId}`);
     return data;
@@ -373,31 +446,24 @@ export const interviewsAPI = {
 };
 
 // ─────────────────────────────────────────
-// FINAL SELECTION
+// SELECTION API
 // ─────────────────────────────────────────
 
 export const selectionAPI = {
-  getCompositeScores: async (
-    jobId: string,
-    appWeight?: number,
-    interviewWeight?: number
-  ): Promise<{ ranked_candidates: CompositeCandidate[] }> => {
+  getCompositeScores: async (jobId: string, appWeight?: number, interviewWeight?: number): Promise<{ ranked_candidates: CompositeCandidate[] }> => {
     const { data } = await apiClient.get(`/selection/composite/${jobId}`, {
       params: { app_weight: appWeight, interview_weight: interviewWeight },
     });
     return data;
   },
-
   aiRecommend: async (jobId: string) => {
     const { data } = await apiClient.post(`/selection/ai/recommend/${jobId}`);
     return data;
   },
-
   decide: async (jobId: string, payload: FinalSelectionPayload) => {
     const { data } = await apiClient.post(`/selection/decide/${jobId}`, payload);
     return data;
   },
-
   get: async (jobId: string) => {
     const { data } = await apiClient.get(`/selection/${jobId}`);
     return data;
@@ -405,7 +471,7 @@ export const selectionAPI = {
 };
 
 // ─────────────────────────────────────────
-// DASHBOARD
+// DASHBOARD API
 // ─────────────────────────────────────────
 
 export const dashboardAPI = {
@@ -413,22 +479,18 @@ export const dashboardAPI = {
     const { data } = await apiClient.get("/dashboard/overview");
     return data;
   },
-
   getJobPipeline: async (jobId: string): Promise<PipelineSummary> => {
     const { data } = await apiClient.get(`/dashboard/pipeline/${jobId}`);
     return data;
   },
-
   getActiveJobs: async () => {
     const { data } = await apiClient.get("/dashboard/jobs/active");
     return data;
   },
-
   getAIPerformance: async (): Promise<AIPerformanceReport> => {
     const { data } = await apiClient.get("/dashboard/ai-performance");
     return data;
   },
-
   getUpcomingInterviews: async () => {
     const { data } = await apiClient.get("/dashboard/interviews/upcoming");
     return data;
