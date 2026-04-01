@@ -35,6 +35,11 @@ const nextConfig = {
         source: "/api/backend/dashboard",
         destination: "http://127.0.0.1:8000/dashboard/",
       },
+      // Public apply endpoint — no trailing slash needed
+      {
+        source: "/api/backend/applications/apply/:jobId",
+        destination: "http://127.0.0.1:8000/applications/apply/:jobId",
+      },
       // All other routes (including /auth/*) — proxy as-is
       {
         source: "/api/backend/:path*",

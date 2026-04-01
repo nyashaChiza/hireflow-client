@@ -1,9 +1,9 @@
 "use client";
 
 import { useState } from "react";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { jobsAPI } from "../../../lib/store/useAuthStore";
-import { JobPost, JobStatus, EmploymentType, AIGenerateJobPayload } from "../../../types";
+import { JobPost, EmploymentType, AIGenerateJobPayload } from "../../../types";
 
 const STATUS_BADGE: Record<string, string> = {
   active: "bg-green-500/10 text-green-400 border-green-500/20",
@@ -222,7 +222,9 @@ export default function JobsPage() {
     queryFn: () => jobsAPI.list(tab === "all" ? undefined : tab),
   });
 
-  const filtered = jobs as JobPost[];
+  const filtered: JobPost[] = Array.isArray(jobs)
+    ? jobs
+    : (jobs as any)?.jobs ?? (jobs as any)?.items ?? [];
 
   const doAction = async (action: "publish" | "close" | "delete", job: JobPost) => {
     setActionBusy(job.id);

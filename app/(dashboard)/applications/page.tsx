@@ -196,7 +196,9 @@ export default function ApplicationsPage() {
     }
   };
 
-  const appList = applications as Application[];
+  const appList: Application[] = Array.isArray(applications)
+    ? applications
+    : (applications as any)?.applications ?? (applications as any)?.items ?? [];
 
   return (
     <div className="p-8 space-y-6 max-w-6xl">
